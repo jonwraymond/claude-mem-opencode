@@ -3,7 +3,7 @@
 set -e
 
 echo "=========================================="
-echo "Building opencode-mem bundle for OpenCode"
+echo "Building claude-mem-opencode bundle for OpenCode"
 echo "=========================================="
 echo ""
 
@@ -16,11 +16,11 @@ mkdir -p dist/bundle
 echo ""
 echo "[2/4] Building bundle..."
 bun build src/bundle/index.ts \
-    --outfile dist/bundle/opencode-mem.js \
+    --outfile dist/bundle/claude-mem-opencode.js \
     --target node
 
 # Verify bundle was created
-if [ ! -f "dist/bundle/opencode-mem.js" ]; then
+if [ ! -f "dist/bundle/claude-mem-opencode.js" ]; then
     echo "❌ Bundle failed - output file not found"
     exit 1
 fi
@@ -42,12 +42,12 @@ echo ""
 echo "[4/4] Creating bundle info..."
 cat > dist/bundle/package.json << EOF
 {
-  "name": "opencode-mem-bundle",
+  "name": "claude-mem-opencode-bundle",
   "version": "$(node -p "require('../package.json').version")",
   "description": "OpenCode integration for claude-mem (bundled)",
-  "main": "./opencode-mem.js",
+  "main": "./claude-mem-opencode.js",
   "files": [
-    "opencode-mem.js",
+    "claude-mem-opencode.js",
     "skill/"
   ]
 }
@@ -60,7 +60,7 @@ if [ ! -f "dist/bundle/package.json" ]; then
 fi
 
 # Get file sizes
-BUNDLE_SIZE=$(du -h dist/bundle/opencode-mem.js | cut -f1)
+BUNDLE_SIZE=$(du -h dist/bundle/claude-mem-opencode.js | cut -f1)
 TOTAL_SIZE=$(du -sh dist/bundle | cut -f1)
 
 echo ""
@@ -70,16 +70,16 @@ echo "Output files:"
 ls -lh dist/bundle/
 echo ""
 echo "Bundle statistics:"
-echo "  • Main bundle: dist/bundle/opencode-mem.js ($BUNDLE_SIZE)"
+echo "  • Main bundle: dist/bundle/claude-mem-opencode.js ($BUNDLE_SIZE)"
 echo "  • Total size: $TOTAL_SIZE"
 echo "  • Skill files: $(find dist/bundle/skill -type f | wc -l) files"
 echo ""
 echo "To integrate with OpenCode:"
 echo "  1. Copy dist/bundle/* to your OpenCode project"
-echo "  2. Import: import { ClaudeMemIntegration } from './opencode-mem.js'"
+echo "  2. Import: import { ClaudeMemIntegration } from './claude-mem-opencode.js'"
 echo "  3. Initialize: await integration.initialize()"
 echo ""
-echo "Or install globally:"
-echo "  npm install -g opencode-mem"
+echo "Or install globally (when published):"
+echo "  npm install -g claude-mem-opencode"
 echo ""
 echo "Bundle complete! 🎉"

@@ -41,16 +41,15 @@
   "scripts": {
     "build": "npm run build:lib && npm run build:bundle",
     "build:lib": "tsc",
-    "build:bundle": "bun build src/bundle/index.ts --outfile dist/bundle/opencode-mem.js --target node",
+    "build:bundle": "bun build src/bundle/index.ts --outfile dist/bundle/claude-mem-opencode.js --target node",
     "test": "bun test",
     "test:unit": "bun test tests/unit",
     "test:integration": "bun test tests/integration",
     "test:e2e": "bun test tests/e2e",
-    "test:compatibility": "bash scripts/test-against-claude-mem.sh",
     "lint": "eslint src tests || echo 'Linting not configured'",
-    "install:global": "bash scripts/install.sh",
-    "setup": "bash scripts/setup.sh",
     "bundle": "bash scripts/bundle.sh",
+    "install:from-source": "bash scripts/install-from-source.sh",
+    "cleanup": "bash scripts/cleanup.sh",
     "release": "npm run build && npm publish"
   },
   "repository": {
