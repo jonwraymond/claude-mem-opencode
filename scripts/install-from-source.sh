@@ -4,6 +4,7 @@ set -e
 
 CLAUDE_MEM_VERSION=${1:-8.5.4}
 OPENCODE_MEM_VERSION=${2:-latest}
+DEST_DIR=${3:-}
 
 echo "=========================================="
 echo "Installing claude-mem and claude-mem-opencode from Source"
@@ -11,6 +12,12 @@ echo "=========================================="
 echo ""
 echo "claude-mem version: $CLAUDE_MEM_VERSION"
 echo "claude-mem-opencode version: $OPENCODE_MEM_VERSION"
+
+if [ -n "$DEST_DIR" ]; then
+    echo "Installation destination: $DEST_DIR"
+else
+    echo "Installation destination: Global (npm install -g)"
+fi
 echo ""
 
 # Step 1: Install claude-mem from GitHub
@@ -56,10 +63,37 @@ echo ""
 
 # Step 2: Install claude-mem-opencode from source
 echo ""
-echo "[2/5] Installing claude-mem-opencode..."
+echo "Usage: bash scripts/install-from-source.sh [claude-mem-version] [claude-mem-opencode-version] [destination-folder]"
+echo ""
+echo "Arguments:"
+echo "  claude-mem-version:    claude-mem version to install (default: 8.5.4)"
+echo "  claude-mem-opencode-version: claude-mem-opencode version (default: latest)"
+echo "  destination-folder:      Custom folder to install claude-mem-opencode (optional)"
+echo "                           If specified, claude-mem-opencode will be built locally"
+echo "                           instead of installed globally"
+echo ""
+echo "Examples:"
+echo "  # Default: Install latest versions globally"
+echo "  bash scripts/install-from-source.sh"
+echo ""
+echo "  # Install specific versions"
+echo "  bash scripts/install-from-source.sh 8.5.3 latest"
+echo ""
+echo "  # Install to local folder (for development/testing)"
+echo "  bash scripts/install-from-source.sh 8.5.4 latest /path/to/opencode/project"
+echo ""
+echo "  # Install to absolute path"
+echo "  bash scripts/install-from-source.sh latest latest /home/user/my-opcode-integration"
 echo ""
 
-cd /home/daniel/vscode-projects/opencode-mem 2>/dev/null || echo "  ℹ️  Using current directory"
+OPENCODE_DIR=$(pwd)  # Default to current directory
+if [ -n "$DEST_DIR" ]; then
+    OPENCODE_DIR="$DEST_DIR"
+    echo "  Destination: $DEST_DIR"
+fi
+
+cd $OPENCODE_DIR
+echo "  Directory: $OPENCODE_DIR"
 
 echo "  Installing dependencies..."
 bun install
@@ -71,14 +105,34 @@ bun run build
 echo "  ✅ Build complete"
 echo ""
 
-echo "  Installing globally..."
-npm install -g .
-echo "  ✅ claude-mem-opencode installed globally"
+if [ -n "$DEST_DIR" ]; then
+    echo "  Installing to local folder (not global)..."
+    # Don't install globally, just build to DEST_DIR
+    echo "  Build files already in $OPENCODE_DIR/dist/"
+else
+    echo "  Installing globally..."
+    npm install -g .
+    echo "  ✅ claude-mem-opencode installed globally"
+fi
+
 echo ""
 
 # Verify installation
-OPENCODE_MEM_INSTALLED=$(claude-mem-opencode --version 2>/dev/null || echo "unknown")
-echo "  ✅ claude-mem-opencode v$OPENCODE_MEM_INSTALLED installed"
+if [ -n "$DEST_DIR" ]; then
+    # Local installation - verify files exist
+    echo "[3/5] Verifying installation..."
+    if [ -d "$OPENCODE_DIR/dist" ]; then
+        echo "  ✅ Build directory exists: $OPENCODE_DIR/dist/"
+    else
+        echo "  ❌ Build directory not found"
+        exit 1
+    fi
+    OPENCODE_MEM_VERSION="local build"
+else
+    # Global installation
+    OPENCODE_MEM_INSTALLED=$(claude-mem-opencode --version 2>/dev/null || echo "unknown")
+    echo "  ✅ claude-mem-opencode v$OPENCODE_MEM_INSTALLED installed"
+fi
 echo ""
 
 # Step 3: Verify installations
@@ -91,12 +145,15 @@ if ! command -v claude-mem &>/dev/null; then
     exit 1
 fi
 
-if ! command -v claude-mem-opencode &>/dev/null; then
-    echo "❌ claude-mem-opencode not found in PATH"
-    exit 1
+if [ -n "$DEST_DIR" ]; then
+    echo "  Local installation mode - skipping global command check"
+else
+    if ! command -v claude-mem-opencode &>/dev/null; then
+        echo "❌ claude-mem-opencode not found in PATH"
+        exit 1
+    fi
+    echo "✅ Both packages installed and available in PATH"
 fi
-
-echo "✅ Both packages installed and available in PATH"
 echo ""
 
 # Step 4: Test claude-mem worker
@@ -146,54 +203,28 @@ echo "✅ Worker is healthy (API v$WORKER_API_VERSION)"
 echo ""
 
 # Step 5: Run quick test
+
 echo ""
-echo "[5/5] Running quick test..."
+echo "Usage: bash scripts/install-from-source.sh [claude-mem-version] [claude-mem-opencode-version] [destination-folder]"
+echo ""
+echo "Arguments:"
+echo "  claude-mem-version:    claude-mem version to install (default: 8.5.4)"
+echo "  claude-mem-opencode-version: claude-mem-opencode version (default: latest)"
+echo "  destination-folder:      Custom folder to install claude-mem-opencode (optional)"
+echo "                           If specified, claude-mem-opencode will be built locally"
+echo "                           instead of installed globally"
+echo ""
+echo "Examples:"
+echo "  # Default: Install latest versions globally"
+echo "  bash scripts/install-from-source.sh"
+echo ""
+echo "  # Install specific versions"
+echo "  bash scripts/install-from-source.sh 8.5.3 latest"
+echo ""
+echo "  # Install to local folder (for development/testing)"
+echo "  bash scripts/install-from-source.sh 8.5.4 latest /path/to/opencode/project"
+echo ""
+echo "  # Install to absolute path"
+echo "  bash scripts/install-from-source.sh latest latest /home/user/my-opencode-integration"
 echo ""
 
-echo "  Testing claude-mem-opencode import..."
-if bun test tests/unit --reporter=tap 2>&1 | grep -q "pass"; then
-    echo "  ✅ claude-mem-opencode unit tests pass"
-else
-    echo "  ⚠️  claude-mem-opencode unit tests failed (may be expected)"
-fi
-
-# Stop worker for cleanup
-echo ""
-echo "Stopping worker..."
-kill $WORKER_PID 2>/dev/null || true
-sleep 1
-echo "✅ Worker stopped"
-echo ""
-
-# Cleanup
-cd /
-rm -rf $TEMP_DIR
-echo "✅ Cleanup complete"
-echo ""
-
-# Summary
-echo "=========================================="
-echo "✅ Installation Complete!"
-echo "=========================================="
-echo ""
-echo "Installed versions:"
-echo "  • claude-mem: v$CLAUDE_MEM_INSTALLED"
-echo "  • claude-mem-opencode: v$OPENCODE_MEM_INSTALLED"
-echo ""
-echo "Quick commands:"
-echo "  • Start worker:      claude-mem worker start"
-echo "  • Check status:      claude-mem worker status"
-echo "  • View logs:        claude-mem worker logs"
-echo "  • Stop worker:       claude-mem worker stop"
-echo "  • Run unit tests:   bun run test:unit"
-echo "  • Search memories:   claude-mem search \"query\""
-echo ""
-echo "Testing:"
-echo "  • Run integration tests: bun run test:integration"
-echo "  • Run E2E tests:      bun run test:e2e"
-echo ""
-echo "Documentation:"
-echo "  • Testing guide:     cat docs/TESTING.md"
-echo "  • Installation:      cat docs/INSTALLATION.md"
-echo ""
-echo "Ready to use! 🎉"
