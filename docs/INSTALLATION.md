@@ -5,12 +5,23 @@
 ### Prerequisites
 
 - Node.js >= 18.0.0
-- claude-mem (optional, required for memory features)
+- claude-mem >= 8.5.0 (required for memory features)
 
-### Installation
+### Install claude-mem (required)
 
 ```bash
-npm install -g opencode-mem
+npm install -g claude-mem
+```
+
+Verify installation:
+```bash
+claude-mem --version
+```
+
+### Install claude-mem-opencode
+
+```bash
+npm install -g claude-mem-opencode
 ```
 
 Or with automated script:
@@ -21,16 +32,21 @@ bash scripts/install.sh
 ### Verification
 
 ```bash
-opencode-mem --version
-opencode-mem check-compatibility
+claude-mem-opencode --version
 ```
 
 ## Option 2: Bundle for OpenCode
 
+### Prerequisites
+
+```bash
+# Install dependencies
+npm install
+```
+
 ### Build Bundle
 
 ```bash
-npm install
 npm run bundle
 ```
 
@@ -39,7 +55,7 @@ npm run bundle
 1. Copy `dist/bundle/*` to your OpenCode project
 2. Import in your code:
    ```typescript
-   import { ClaudeMemIntegration } from './opencode-mem.js'
+   import { ClaudeMemIntegration } from './claude-mem-opencode.js'
    ```
 3. Initialize on startup:
    ```typescript
@@ -49,8 +65,10 @@ npm run bundle
 
 ## Starting claude-mem Worker
 
+Before using claude-mem-opencode, you must start the claude-mem worker:
+
 ```bash
-# If installed globally
+# Start worker
 claude-mem worker start
 
 # Check status
@@ -63,6 +81,37 @@ claude-mem worker logs
 claude-mem worker stop
 ```
 
+The worker runs on `http://localhost:37777` by default.
+
+## Quick Start
+
+Once installed:
+
+1. **Start claude-mem worker:**
+   ```bash
+   claude-mem worker start
+   ```
+
+2. **Use in your code:**
+   ```typescript
+   import { ClaudeMemIntegration } from 'claude-mem-opencode'
+
+   const integration = new ClaudeMemIntegration()
+   await integration.initialize()
+
+   // Memory is now being captured automatically!
+
+   // Search memories
+   const results = await integration.searchMemory("authentication")
+
+   // Get project context
+   const context = await integration.getProjectContext()
+
+   // Get status
+   const status = await integration.getStatus()
+   console.log(status)
+   ```
+
 ## Troubleshooting
 
 ### Worker not responding
@@ -71,14 +120,20 @@ claude-mem worker stop
 2. Check worker logs: `claude-mem worker logs`
 3. Restart worker: `claude-mem worker restart`
 
-### Compatibility issues
+### Installation issues
 
 ```bash
-# Check compatibility
-opencode-mem check-compatibility
+# Check Node version (must be >= 18.0.0)
+node --version
 
-# Test specific claude-mem version
-bash scripts/test-against-claude-mem.sh 2.3.1
+# Check claude-mem installation
+claude-mem --version
+
+# Check claude-mem-opencode installation
+claude-mem-opencode --version
+
+# Test worker connection
+curl http://localhost:37777/api/health
 ```
 
 ### Port already in use
@@ -93,24 +148,22 @@ netstat -ano | findstr :37777  # Windows
 # Kill the process
 kill <PID>  # macOS/Linux
 taskkill /PID <PID> /F  # Windows
-
-# Or configure different port (see claude-mem docs)
 ```
 
 ### Memory not being captured
 
-1. Verify worker is running: `opencode-mem status`
-2. Check event listeners are initialized in OpenCode
-3. Check OpenCode console for errors
+1. Verify worker is running: `claude-mem worker status`
+2. Check the integration is initialized in your code
+3. Check console for errors
 4. Verify session is not marked as private
 
 ## Installation Verification Checklist
 
+- [ ] Node.js >= 18.0.0 installed: `node --version`
 - [ ] claude-mem installed: `claude-mem --version`
-- [ ] opencode-mem installed: `opencode-mem --version`
+- [ ] claude-mem-opencode installed: `claude-mem-opencode --version`
 - [ ] Worker running: `curl http://localhost:37777/api/health`
-- [ ] Compatibility check: `opencode-mem check-compatibility`
-- [ ] OpenCode integration initialized
+- [ ] Integration initialized in code
 - [ ] Test session created and memory captured
 - [ ] Search functionality working
 
@@ -118,12 +171,16 @@ taskkill /PID <PID> /F  # Windows
 
 After installation:
 
-1. **For Users**: Start OpenCode and create a session. Memory will be captured automatically.
-2. **For Developers**: Integrate opencode-mem into your OpenCode fork using the bundle method.
-3. **Testing**: Run `opencode-mem check-compatibility` to verify everything works.
+1. **For Users**: Start claude-mem worker and integrate with your code using the examples above.
+2. **For Developers**: Integrate claude-mem-opencode into your OpenCode fork using the bundle method.
+3. **Testing**: Run tests to verify everything works:
+   ```bash
+   npm test
+   ```
 
 ## Support
 
-- Documentation: [https://github.com/your-org/opencode-mem](https://github.com/your-org/opencode-mem)
-- Issues: [https://github.com/your-org/opencode-mem/issues](https://github.com/your-org/opencode-mem/issues)
-- API Contract: [API_CONTRACT.md](docs/API_CONTRACT.md)
+- Documentation: [https://github.com/mc303/claude-mem-opencode](https://github.com/mc303/claude-mem-opencode)
+- Issues: [https://github.com/mc303/claude-mem-opencode/issues](https://github.com/mc303/claude-mem-opencode/issues)
+- claude-mem: [https://github.com/thedotmack/claude-mem](https://github.com/thedotmack/claude-mem)
+- API Contract: [API_CONTRACT.md](API_CONTRACT.md)
