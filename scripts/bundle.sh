@@ -12,6 +12,11 @@ echo "[1/4] Cleaning previous build..."
 rm -rf dist/bundle
 mkdir -p dist/bundle
 
+# Build type definitions first (needed for bundle)
+echo ""
+echo "[1.5/4] Building type definitions..."
+npm run build:lib
+
 # Build bundle
 echo ""
 echo "[2/4] Building bundle..."
@@ -19,9 +24,31 @@ bun build src/bundle/index.ts \
     --outfile dist/bundle/claude-mem-opencode.js \
     --target node
 
+cd ../..
+
 # Verify bundle was created
 if [ ! -f "dist/bundle/claude-mem-opencode.js" ]; then
     echo "❌ Bundle failed - output file not found"
+    exit 1
+fi
+
+if [ ! -f "dist/bundle/index.js" ]; then
+    echo "❌ Bundle failed - index.js symlink not found"
+    exit 1
+fi
+    ln -s claude-mem-opencode.js index.js
+    echo "Created symlink: index.js -> claude-mem-opencode.js"
+fi
+cd ../../..
+
+# Verify bundle was created
+if [ ! -f "dist/bundle/claude-mem-opencode.js" ]; then
+    echo "❌ Bundle failed - output file not found"
+    exit 1
+fi
+
+if [ ! -f "dist/bundle/index.js" ]; then
+    echo "❌ Bundle failed - index.js symlink not found"
     exit 1
 fi
 
