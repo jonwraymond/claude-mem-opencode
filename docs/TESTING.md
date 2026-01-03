@@ -747,9 +747,517 @@ If you find a bug:
 
 ---
 
+## 5. Testing from Source (Git Clone)
+
+### Option A: Uninstall npm packages and install from source
+
+If you want to test the latest development code instead of published packages:
+
+### Step 1: Remove npm packages
+
+```bash
+# Uninstall claude-mem from npm
+npm uninstall -g claude-mem
+npm uninstall -g @thedotmack/claude-mem
+
+# Uninstall claude-mem-opencode
+npm uninstall -g claude-mem-opencode
+```
+
+### Step 2: Install claude-mem from source
+
+```bash
+# Clone claude-mem repository
+git clone https://github.com/thedotmack/claude-mem.git
+cd claude-mem
+
+# Install dependencies
+bun install
+
+# Build project
+bun run build
+
+# Install globally via npm
+npm install -g .
+# OR use bun link for development
+bun link
+
+# Verify installation
+claude-mem --version
+# Should show: 8.5.4 or later
+```
+
+### Step 3: Install claude-mem-opencode from source
+
+```bash
+# Navigate to your claude-mem-opencode repository
+cd /path/to/claude-mem-opencode
+
+# Install dependencies
+bun install
+
+# Build project
+bun run build
+
+# Install globally via npm
+npm install -g .
+# OR use bun link for development
+bun link
+
+# Verify installation
+claude-mem-opencode --version
+# Should show: 0.0.1
+```
+
+### Step 4: Test installation
+
+```bash
+# Start claude-mem worker
+claude-mem worker start
+
+# Verify worker is running
+curl http://localhost:37777/api/health
+
+# Run unit tests
+bun run test:unit
+
+# Run integration tests
+bun run test:integration
+
+# Run E2E tests
+bun run test:e2e
+
+# Stop worker when done
+claude-mem worker stop
+```
+
+### Step 5: Switch between npm and source versions
+
+```bash
+# To switch back to npm versions:
+bun unlink claude-mem-opencode
+bun unlink claude-mem  # if you used bun link
+npm install -g claude-mem-opencode
+npm install -g claude-mem
+
+# To switch back to source versions:
+cd /path/to/claude-mem-opencode
+bun link
+
+cd /path/to/claude-mem
+bun link
+```
+
+---
+
+### Option B: Install from source using bun link (for development)
+
+For active development, use `bun link` instead of npm install:
+
+```bash
+# Terminal 1: claude-mem
+git clone https://github.com/thedotmack/claude-mem.git
+cd claude-mem
+bun install
+bun run build
+bun link  # Creates symlink for development
+
+# Terminal 2: claude-mem-opencode
+cd /path/to/claude-mem-opencode
+bun install
+bun run build
+bun link  # Creates symlink for development
+
+# Now any changes to source are immediately available
+# No need to reinstall after each change!
+```
+
+### Testing with bun link
+
+When using `bun link`, you can make changes and test immediately:
+
+```bash
+# 1. Make code changes in either repository
+vim src/integration/worker-client.ts  # Make changes
+
+# 2. Rebuild (if needed)
+bun run build
+
+# 3. Run tests immediately
+bun run test:unit
+
+# 4. No npm reinstall required!
+# bun link provides automatic symlink updates
+```
+
+---
+
+## 6. Testing with OpenCode
+
+### Prerequisites
+
+1. OpenCode installed
+2. claude-mem v8.5.4 installed and worker running
+3. claude-mem-opencode built from source or installed
+
+### Step 1: Add claude-mem-opencode to OpenCode
+
+#### Method A: Copy bundle files (Recommended for testing)
+
+```bash
+# Navigate to your OpenCode project
+cd /path/to/opencode
+
+# Create skills directory if it doesn't exist
+mkdir -p .opencode/skills
+
+# Copy the bundle files
+cp /path/to/claude-mem-opencode/dist/bundle/* .opencode/skills/
+
+# Copy skill definition
+cp /path/to/claude-mem-opencode/src/skill/SKILL.md .opencode/skills/
+
+# Copy skill operations
+cp -r /path/to/claude-mem-opencode/src/skill/operations .opencode/skills/
+```
+
+#### Method B: Add as npm package
+
+```bash
+# In your OpenCode project directory
+cd /path/to/opencode
+
+# Add claude-mem-opencode as dependency
+# If you're using bun link for development:
+npm link claude-mem-opencode
+
+# OR if it's published:
+npm install claude-mem-opencode
+```
+
+### Step 2: Create integration script in OpenCode
+
+Create `.opencode/integrations/claude-mem.ts`:
+
+```typescript
+import { ClaudeMemIntegration } from 'claude-mem-opencode'
+
+let integration: ClaudeMemIntegration | null = null
+
+export async function initialize() {
+  console.log('[CLAUDE_MEM_OPENCODE] Initializing...')
+  
+  try {
+    integration = new ClaudeMemIntegration('http://localhost:37777')
+    await integration.initialize()
+    console.log('[CLAUDE_MEM_OPENCODE] ✅ Initialized successfully')
+    
+    const status = await integration.getStatus()
+    console.log('[CLAUDE_MEM_OPENCODE] Status:', status)
+  } catch (error) {
+    console.error('[CLAUDE_MEM_OPENCODE] ❌ Initialization failed:', error)
+  }
+}
+
+export async function shutdown() {
+  if (integration) {
+    console.log('[CLAUDE_MEM_OPENCODE] Shutting down...')
+    await integration.shutdown()
+    console.log('[CLAUDE_MEM_OPENCODE] ✅ Shutdown complete')
+  }
+}
+```
+
+### Step 3: Register integration in OpenCode
+
+OpenCode automatically loads integrations from `.opencode/integrations/` directory. The integration script above will be loaded automatically.
+
+### Step 4: Test integration in OpenCode
+
+```bash
+# 1. Start claude-mem worker (if not running)
+claude-mem worker start
+
+# 2. Verify worker is running
+curl http://localhost:37777/api/health
+
+# 3. Start OpenCode
+# Navigate to your OpenCode project directory
+cd /path/to/opencode-project
+
+# Start OpenCode
+opencode
+
+# 4. Check OpenCode logs for integration
+# Look for: [CLAUDE_MEM_OPENCODE] ✅ Initialized successfully
+```
+
+### Step 5: Verify memory capture
+
+After starting OpenCode:
+
+```bash
+# 1. Use OpenCode to run some commands
+# Example: ask OpenCode to list files, read code, etc.
+
+# 2. Verify memories were created
+# Use claude-mem CLI to check stored memories
+claude-mem search "your query"
+
+# 3. Check worker logs
+claude-mem worker logs
+# Look for session initialization, observation storage, etc.
+```
+
+### Step 6: Test memory retrieval
+
+```bash
+# 1. Start a new OpenCode session
+# Close OpenCode and start it again
+
+# 2. Ask OpenCode a question about previous work
+# Example: "What did we work on yesterday?"
+
+# 3. Check if context was injected
+# The worker should have injected relevant memories into the new session
+```
+
+### Troubleshooting OpenCode integration
+
+#### Integration not loading
+
+```bash
+# Check if integration file exists
+ls -la .opencode/integrations/
+
+# Check OpenCode logs
+opencode --log-level=debug
+
+# Verify integration is being called
+# Look for [CLAUDE_MEM_OPENCODE] messages
+```
+
+#### Worker not accessible from OpenCode
+
+```bash
+# Check if worker is running
+claude-mem worker status
+
+# Check OpenCode can reach worker
+curl http://localhost:37777/api/health
+
+# Check firewall settings
+# Ensure port 37777 is not blocked
+```
+
+#### Debug integration issues
+
+```bash
+# Enable verbose logging in OpenCode
+opencode --log-level=debug
+
+# Check worker logs
+claude-mem worker logs
+
+# Test integration separately
+node .opencode/integrations/claude-mem.ts
+```
+
+### Testing with source code changes
+
+When developing claude-mem-opencode:
+
+```bash
+# 1. Make code changes
+cd /path/to/claude-mem-opencode
+vim src/integration/worker-client.ts  # Make changes
+
+# 2. Rebuild
+bun run build
+
+# 3. Restart OpenCode
+# The bundle is already copied, just restart to reload
+
+# 4. Test in OpenCode
+# Your changes are now active!
+```
+
+### Complete OpenCode testing workflow
+
+```bash
+# Terminal 1: claude-mem worker
+claude-mem worker start
+
+# Terminal 2: claude-mem-opencode development
+cd /path/to/claude-mem-opencode
+bun run build  # After each change
+
+# Terminal 3: OpenCode
+cd /path/to/opencode-project
+opencode  # Start using integration
+
+# Terminal 4: Monitor
+claude-mem worker logs  # Watch for activity
+```
+
+---
+
+## 7. Switching Between Versions
+
+### Scenario: Test different claude-mem versions
+
+```bash
+# Uninstall current version
+npm uninstall -g claude-mem
+
+# Install specific version from npm (when available)
+npm install -g claude-mem@8.5.3
+
+# OR install from source (git clone with specific tag)
+git clone -b v8.5.3 https://github.com/thedotmack/claude-mem.git
+cd claude-mem
+bun install && bun run build && npm install -g .
+```
+
+### Scenario: Test different claude-mem-opencode versions
+
+```bash
+# Uninstall current version
+npm uninstall -g claude-mem-opencode
+
+# Install from specific commit/branch
+git clone https://github.com/mc303/claude-mem-opencode.git
+cd claude-mem-opencode
+git checkout my-feature-branch
+bun install && bun run build && bun link
+```
+
+---
+
+## 8. Clean Installation Guide
+
+### Remove all npm packages (clean slate)
+
+```bash
+# Uninstall claude-mem
+npm uninstall -g claude-mem
+npm uninstall -g @thedotmack/claude-mem
+
+# Uninstall claude-mem-opencode
+npm uninstall -g claude-mem-opencode
+
+# Verify all packages are removed
+npm list -g --depth=0 | grep -E "claude-mem|opencode"
+# Should output nothing
+```
+
+### Install from source (clean installation)
+
+```bash
+# Install claude-mem from source
+git clone https://github.com/thedotmack/claude-mem.git
+cd claude-mem
+bun install
+bun run build
+npm install -g .
+# OR
+bun link
+
+# Verify claude-mem installation
+claude-mem --version
+# Should show: 8.5.4 or later
+
+# Install claude-mem-opencode from source
+cd /path/to/claude-mem-opencode
+bun install
+bun run build
+npm install -g .
+# OR
+bun link
+
+# Verify claude-mem-opencode installation
+claude-mem-opencode --version
+```
+
+### Testing source installation workflow
+
+```bash
+# 1. Start with clean environment
+npm uninstall -g claude-mem claude-mem-opencode
+rm -rf /path/to/claude-mem
+rm -rf /path/to/claude-mem-opencode
+
+# 2. Install from source
+git clone https://github.com/thedotmack/claude-mem.git
+git clone https://github.com/mc303/claude-mem-opencode.git
+
+# Install claude-mem
+cd claude-mem
+bun install && bun run build && npm install -g .
+
+# Install claude-mem-opencode
+cd ../claude-mem-opencode
+bun install && bun run build && npm install -g .
+
+# 3. Test everything
+claude-mem worker start
+bun run test:unit
+bun run test:integration
+claude-mem worker stop
+
+# 4. Clean up
+npm uninstall -g claude-mem claude-mem-opencode
+```
+
+---
+
+## 9. Development Workflow
+
+### Using bun link for rapid iteration
+
+```bash
+# Terminal 1: claude-mem (worker)
+git clone https://github.com/thedotmack/claude-mem.git
+cd claude-mem
+bun install && bun run build && bun link
+
+# Terminal 2: claude-mem-opencode (integration)
+cd /path/to/claude-mem-opencode
+bun install && bun run build && bun link
+
+# Terminal 3: OpenCode project (testing)
+cd /path/to/opencode-project
+npm link claude-mem-opencode
+
+# Terminal 4: Test runner
+# Now run tests in terminal 2
+bun run test:unit
+bun run test:integration
+```
+
+### Rapid iteration workflow
+
+```bash
+# 1. Make code changes
+cd /path/to/claude-mem-opencode
+vim src/integration/worker-client.ts
+
+# 2. Rebuild (if needed)
+bun run build
+
+# 3. Test immediately (no reinstall needed with bun link!)
+bun run test:unit
+
+# 4. Repeat
+# Changes are instantly available!
+```
+
+---
+
 ## Additional Resources
 
 - [Installation Guide](INSTALLATION.md)
 - [API Contract](API_CONTRACT.md)
 - [README](../README.md)
 - [Integration Documentation](../src/integration/API-REFERENCE.md)
+- [OpenCode Documentation](https://github.com/sst/opencode)
