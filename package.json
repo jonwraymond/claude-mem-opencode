@@ -1,12 +1,9 @@
 {
-  "name": "@mc303/claude-mem-opencode",
-  "version": "0.0.1",
+  "name": "claude-mem-opencode",
+  "version": "0.0.2",
   "description": "OpenCode integration for claude-mem persistent memory",
   "main": "./dist/bundle/index.js",
   "types": "./dist/bundle/index.d.ts",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "exports": {
     ".": {
       "import": "./dist/bundle/index.js",
@@ -14,6 +11,10 @@
     },
     "./bundle": {
       "import": "./dist/bundle/opencode-mem.js"
+    },
+    "./plugin": {
+      "import": "./dist/plugin.js",
+      "types": "./dist/plugin.d.ts"
     }
   },
   "files": [
@@ -26,6 +27,7 @@
     "bun": ">=1.0.0"
   },
   "dependencies": {
+    "@opencode-ai/sdk": "^1.0.223",
     "open": "^8.4.2"
   },
   "devDependencies": {
@@ -42,6 +44,7 @@
     }
   },
   "scripts": {
+    "prepare": "npm run build",
     "build": "npm run build:lib && npm run build:bundle",
     "build:lib": "tsc",
     "build:bundle": "bun build src/bundle/index.ts --outfile dist/bundle/claude-mem-opencode.js --target node",

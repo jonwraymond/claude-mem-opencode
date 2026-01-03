@@ -1,0 +1,10 @@
+{
+  "name": "claude-mem-opencode-bundle",
+  "version": "0.0.1",
+  "description": "OpenCode integration for claude-mem (bundled)",
+  "main": "./claude-mem-opencode.js",
+  "files": [
+    "claude-mem-opencode.js",
+    "skill/"
+  ]
+}
