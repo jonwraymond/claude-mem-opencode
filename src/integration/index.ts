@@ -153,8 +153,9 @@ export class ClaudeMemIntegration {
   }
 }
 
-// Create singleton instance
-const instance = new ClaudeMemIntegration()
+// Create singleton instance for convenience
+const defaultInstance = new ClaudeMemIntegration()
 
-// Export for external use
-export default instance
+// Export the class as default, and the singleton as a named export
+export default ClaudeMemIntegration
+export { defaultInstance }

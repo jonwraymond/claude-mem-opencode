@@ -3,7 +3,7 @@
  * This file is bundled with all dependencies
  */
 
-export { ClaudeMemIntegration, default as instance } from '../integration/index.js'
+export { default, ClaudeMemIntegration, defaultInstance } from '../integration/index.js'
 export { WorkerClient } from '../integration/worker-client.js'
 export { EventListeners } from '../integration/event-listeners.js'
 export { ContextInjector } from '../integration/context-injector.js'

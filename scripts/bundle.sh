@@ -24,22 +24,14 @@ bun build src/bundle/index.ts \
     --outfile dist/bundle/claude-mem-opencode.js \
     --target node
 
+# Create symlink (replace the compiled index.js)
+echo ""
+echo "[2.5/4] Creating symlink..."
+cd dist/bundle
+rm -f index.js index.js.map index.d.ts index.d.ts.map
+ln -s claude-mem-opencode.js index.js
+echo "Created symlink: index.js -> claude-mem-opencode.js"
 cd ../..
-
-# Verify bundle was created
-if [ ! -f "dist/bundle/claude-mem-opencode.js" ]; then
-    echo "❌ Bundle failed - output file not found"
-    exit 1
-fi
-
-if [ ! -f "dist/bundle/index.js" ]; then
-    echo "❌ Bundle failed - index.js symlink not found"
-    exit 1
-fi
-    ln -s claude-mem-opencode.js index.js
-    echo "Created symlink: index.js -> claude-mem-opencode.js"
-fi
-cd ../../..
 
 # Verify bundle was created
 if [ ! -f "dist/bundle/claude-mem-opencode.js" ]; then
@@ -67,10 +59,11 @@ fi
 # Create package info
 echo ""
 echo "[4/4] Creating bundle info..."
+VERSION=$(grep '"version"' package.json | head -1 | cut -d '"' -f 4)
 cat > dist/bundle/package.json << EOF
 {
   "name": "claude-mem-opencode-bundle",
-  "version": "$(node -p "require('../package.json').version")",
+  "version": "$VERSION",
   "description": "OpenCode integration for claude-mem (bundled)",
   "main": "./claude-mem-opencode.js",
   "files": [
