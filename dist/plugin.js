@@ -3,6 +3,9 @@ import { WorkerClient } from "./integration/worker-client.js";
 import { ProjectNameExtractor } from "./integration/utils/project-name.js";
 import { PrivacyTagStripper } from "./integration/utils/privacy.js";
 import { ConfigLoader } from "./integration/config.js";
+// Module-level debug flag (set from config on init)
+let _debug = false;
+
 /**
   * OpenCode plugin for claude-mem persistent memory
  * Provides automatic context capture and injection across sessions
@@ -12,6 +15,7 @@ export const ClaudeMemPlugin = async (ctx) => {
     // Load configuration from multiple sources
     const configLoader = new ConfigLoader(directory);
     const { config, errors, warnings, sources } = await configLoader.load();
+    _debug = config.debug || false;
     // Log configuration warnings and errors
     if (warnings.length > 0) {
         warnings.forEach(warning => console.warn(`[CLAUDE_MEM] ⚠️  ${warning}`));
@@ -22,26 +26,26 @@ export const ClaudeMemPlugin = async (ctx) => {
         throw new Error(`Configuration errors: ${errors.join(', ')}`);
     }
     // Log configuration source
-    config.debug && console.log(`[CLAUDE_MEM] Configuration loaded from: ${sources.join(' → ')}`);
+    _debug && console.log(`[CLAUDE_MEM] Configuration loaded from: ${sources.join(' → ')}`);
     const projectNameExtractor = new ProjectNameExtractor();
     const projectName = projectNameExtractor.extract(directory) || 'unknown';
     const privacyStripper = new PrivacyTagStripper();
     // Session state management
     const sessionStates = new Map();
-    config.debug && console.log('[CLAUDE_MEM] Initializing plugin...');
-    config.debug && console.log(`[CLAUDE_MEM] Project: ${projectName}`);
-    config.debug && console.log(`[CLAUDE_MEM] Worker port: ${config.workerPort}`);
-    config.debug && console.log(`[CLAUDE_MEM] Debug: ${config.debug}`);
+    _debug && console.log('[CLAUDE_MEM] Initializing plugin...');
+    _debug && console.log(`[CLAUDE_MEM] Project: ${projectName}`);
+    _debug && console.log(`[CLAUDE_MEM] Worker port: ${config.workerPort}`);
+    _debug && console.log(`[CLAUDE_MEM] Debug: ${config.debug}`);
     // Initialize worker client
     const workerClient = new WorkerClient(config.workerPort);
     // Fail hard: Worker must be available
     try {
-        config.debug && console.log('[CLAUDE_MEM] Checking worker availability...');
+        _debug && console.log('[CLAUDE_MEM] Checking worker availability...');
         const workerReady = await workerClient.healthCheck();
         if (!workerReady) {
             throw new Error('claude-mem worker is not running. Start it with: claude-mem worker start');
         }
-        config.debug && console.log('[CLAUDE_MEM] ✅ Worker connected - plugin active');
+        _debug && console.log('[CLAUDE_MEM] ✅ Worker connected - plugin active');
     }
     catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -98,14 +102,14 @@ export const ClaudeMemPlugin = async (ctx) => {
                 return;
             }
             try {
-                config.debug && console.log(`[CLAUDE_MEM] Injecting context for session ${input.sessionID}`);
+                _debug && console.log(`[CLAUDE_MEM] Injecting context for session ${input.sessionID}`);
                 // Fetch relevant memories for this project
                 const response = await workerClient.search('', {
                     limit: config.maxContextMemories,
                     project: projectName
                 });
                 if (!response.success || !response.results || response.results.length === 0) {
-                    config.debug && console.log('[CLAUDE_MEM] No relevant memories found');
+                    _debug && console.log('[CLAUDE_MEM] No relevant memories found');
                     state.contextInjected = true;
                     return;
                 }
@@ -123,7 +127,7 @@ export const ClaudeMemPlugin = async (ctx) => {
                 // Unshift to inject at beginning (before user message)
                 output.parts.unshift(contextPart);
                 state.contextInjected = true;
-                config.debug && console.log(`[CLAUDE_MEM] ✅ Context injected (${contextText.length} chars)`);
+                _debug && console.log(`[CLAUDE_MEM] ✅ Context injected (${contextText.length} chars)`);
             }
             catch (error) {
                 console.error('[CLAUDE_MEM] Context injection failed:', error);
@@ -144,7 +148,7 @@ export const ClaudeMemPlugin = async (ctx) => {
                 return;
             }
             try {
-                config.debug && console.log(`[CLAUDE_MEM] Capturing tool: ${input.tool}`);
+                _debug && console.log(`[CLAUDE_MEM] Capturing tool: ${input.tool}`);
                 // Strip private tags from tool input and output
                 const cleanedInput = privacyStripper.stripFromJson(input.tool);
                 const cleanedOutput = privacyStripper.stripFromText(output.output);
@@ -159,7 +163,7 @@ export const ClaudeMemPlugin = async (ctx) => {
                     cwd: directory,
                     timestamp: Date.now()
                 });
-                config.debug && console.log(`[CLAUDE_MEM] ✅ Observation added: ${input.tool}`);
+                _debug && console.log(`[CLAUDE_MEM] ✅ Observation added: ${input.tool}`);
             }
             catch (error) {
                 console.error('[CLAUDE_MEM] Failed to capture tool usage:', error);
@@ -211,7 +215,7 @@ export const ClaudeMemPlugin = async (ctx) => {
                                         error: 'Query parameter is required for search mode'
                                     });
                                 }
-                                config.debug && console.log(`[CLAUDE_MEM] Searching: ${args.query}`);
+                                _debug && console.log(`[CLAUDE_MEM] Searching: ${args.query}`);
                                 const response = await workerClient.search(args.query, {
                                     limit: args.limit || 10,
                                     type: args.type,
@@ -312,7 +316,7 @@ async function handleSessionCreated(event, sessionStates, workerClient, projectN
     // Check for private session indicators
     const isPrivate = isSessionPrivate(info, privacyStripper);
     if (isPrivate) {
-        config.debug && console.log(`[CLAUDE_MEM] Skipping private session: ${sessionId}`);
+        _debug && console.log(`[CLAUDE_MEM] Skipping private session: ${sessionId}`);
         sessionStates.set(sessionId, {
             sessionId,
             claudeMemSessionId: null,
@@ -331,8 +335,8 @@ async function handleSessionCreated(event, sessionStates, workerClient, projectN
             prompt: title
         });
         if (response.skipped) {
-            config.debug && console.log(`[CLAUDE_MEM] Session marked as private: ${sessionId}`);
-            config.debug && console.log(`[CLAUDE_MEM] Reason: ${response.reason}`);
+            _debug && console.log(`[CLAUDE_MEM] Session marked as private: ${sessionId}`);
+            _debug && console.log(`[CLAUDE_MEM] Reason: ${response.reason}`);
             sessionStates.set(sessionId, {
                 sessionId,
                 claudeMemSessionId: null,
@@ -352,7 +356,7 @@ async function handleSessionCreated(event, sessionStates, workerClient, projectN
             projectName,
             promptNumber: response.promptNumber || 1
         });
-        config.debug && console.log(`[CLAUDE_MEM] Session ${sessionId} → ${response.sessionDbId}`);
+        _debug && console.log(`[CLAUDE_MEM] Session ${sessionId} → ${response.sessionDbId}`);
     }
     catch (error) {
         console.error(`[CLAUDE_MEM] Failed to initialize session ${sessionId}:`, error);
@@ -374,9 +378,9 @@ async function handleSessionUpdated(event, sessionStates, workerClient) {
         return;
     }
     try {
-        config.debug && console.log(`[CLAUDE_MEM] Completing session: ${sessionId}`);
+        _debug && console.log(`[CLAUDE_MEM] Completing session: ${sessionId}`);
         await workerClient.completeSession(state.claudeMemSessionId);
-        config.debug && console.log(`[CLAUDE_MEM] ✅ Session completed: ${state.claudeMemSessionId}`);
+        _debug && console.log(`[CLAUDE_MEM] ✅ Session completed: ${state.claudeMemSessionId}`);
         // Clean up state
         sessionStates.delete(sessionId);
     }
