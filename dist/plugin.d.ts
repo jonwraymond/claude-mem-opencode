@@ -1,13 +1,8 @@
-export default function plugin(input: {
-    client: any;
-    project: any;
-    directory: string;
-    worktree: string;
-    serverUrl: URL;
-    $: any;
-}): Promise<{
-    event: ({ event }: {
-        event: any;
-    }) => Promise<void>;
-}>;
+import type { Plugin } from "@opencode-ai/plugin";
+/**
+  * OpenCode plugin for claude-mem persistent memory
+ * Provides automatic context capture and injection across sessions
+ */
+export declare const ClaudeMemPlugin: Plugin;
+export default ClaudeMemPlugin;
 //# sourceMappingURL=plugin.d.ts.map

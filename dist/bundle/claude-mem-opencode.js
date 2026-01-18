@@ -1,22 +1,3 @@
-import { createRequire } from "node:module";
-var __create = Object.create;
-var __getProtoOf = Object.getPrototypeOf;
-var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __toESM = (mod, isNodeMode, target) => {
-  target = mod != null ? __create(__getProtoOf(mod)) : {};
-  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
-  for (let key of __getOwnPropNames(mod))
-    if (!__hasOwnProp.call(to, key))
-      __defProp(to, key, {
-        get: () => mod[key],
-        enumerable: true
-      });
-  return to;
-};
-var __require = /* @__PURE__ */ createRequire(import.meta.url);
-
 // src/integration/worker-client.ts
 class WorkerClient {
   baseUrl;
@@ -156,44 +137,33 @@ class WorkerClient {
     return response.json();
   }
 }
+// src/integration/utils/logger.ts
+var LogLevel;
+((LogLevel2) => {
+  LogLevel2[LogLevel2["DEBUG"] = 0] = "DEBUG";
+  LogLevel2[LogLevel2["INFO"] = 1] = "INFO";
+  LogLevel2[LogLevel2["WARN"] = 2] = "WARN";
+  LogLevel2[LogLevel2["ERROR"] = 3] = "ERROR";
+})(LogLevel ||= {});
 
-// src/integration/session-mapper.ts
-class SessionMapper {
-  mapping = new Map;
-  mapOpenCodeToClaudeMem(openCodeSessionId, claudeMemSessionId) {
-    this.mapping.set(openCodeSessionId, claudeMemSessionId);
-    console.log(`[SESSION_MAPPER] Mapped ${openCodeSessionId} → ${claudeMemSessionId}`);
+class Logger {
+  context;
+  constructor(context) {
+    this.context = context;
   }
-  getClaudeMemSessionId(openCodeSessionId) {
-    return this.mapping.get(openCodeSessionId);
+  debug(message, ...args) {
+    console.log(`[${this.context}] [DEBUG] ${message}`, ...args);
   }
-  getOpenCodeSessionId(claudeMemSessionId) {
-    for (const [openCodeId, claudeMemId] of this.mapping.entries()) {
-      if (claudeMemId === claudeMemSessionId) {
-        return openCodeId;
-      }
-    }
-    return;
+  info(message, ...args) {
+    console.log(`[${this.context}] [INFO] ${message}`, ...args);
   }
-  unmapSession(openCodeSessionId) {
-    this.mapping.delete(openCodeSessionId);
-    console.log(`[SESSION_MAPPER] Unmapped ${openCodeSessionId}`);
+  warn(message, ...args) {
+    console.warn(`[${this.context}] [WARN] ${message}`, ...args);
   }
-  getAllMappings() {
-    return new Map(this.mapping);
-  }
-  hasSession(openCodeSessionId) {
-    return this.mapping.has(openCodeSessionId);
-  }
-  size() {
-    return this.mapping.size;
-  }
-  clear() {
-    this.mapping.clear();
-    console.log("[SESSION_MAPPER] Cleared all mappings");
+  error(message, ...args) {
+    console.error(`[${this.context}] [ERROR] ${message}`, ...args);
   }
 }
-
 // src/integration/utils/project-name.ts
 import path from "path";
 
@@ -210,7 +180,6 @@ class ProjectNameExtractor {
     return this.extract(process.cwd());
   }
 }
-
 // src/integration/utils/privacy.ts
 class PrivacyTagStripper {
   PRIVATE_TAG_REGEX = /<private>[\s\S]*?<\/private>/gi;
@@ -252,291 +221,10 @@ class PrivacyTagStripper {
     };
   }
 }
-
-// src/integration/event-listeners.ts
-var Bus = null;
-var Session = null;
-var MessageV2 = null;
-try {
-  const busModule = await import("@/bus");
-  Bus = busModule.Bus;
-  const sessionModule = await import("@/session");
-  Session = sessionModule.Session;
-  MessageV2 = sessionModule.MessageV2;
-} catch (error) {
-  console.log("[EVENT_LISTENERS] OpenCode APIs not available - running in standalone mode");
-}
-
-class EventListeners {
-  workerClient;
-  sessionMapper;
-  projectNameExtractor;
-  privacyStripper;
-  promptNumberTracker = new Map;
-  constructor(workerClient) {
-    this.workerClient = workerClient;
-    this.sessionMapper = new SessionMapper;
-    this.projectNameExtractor = new ProjectNameExtractor;
-    this.privacyStripper = new PrivacyTagStripper;
-  }
-  async initialize() {
-    if (!Bus || !Session || !MessageV2) {
-      console.log("[EVENT_LISTENERS] OpenCode APIs not available - event listeners will be initialized via manual calls");
-      return;
-    }
-    console.log("[EVENT_LISTENERS] Initializing OpenCode event listeners...");
-    Bus.subscribe(Session.Event.Created, this.handleSessionCreated.bind(this));
-    Bus.subscribe(MessageV2.Event.PartUpdated, this.handleMessagePartUpdated.bind(this));
-    Bus.subscribe(Session.Event.Updated, this.handleSessionUpdated.bind(this));
-    console.log("[EVENT_LISTENERS] Subscribed to OpenCode Bus events");
-  }
-  async handleSessionCreated(event) {
-    const { info } = event.properties;
-    const project = this.projectNameExtractor.extract(info.directory);
-    const openCodeSessionId = info.id;
-    const title = info.title || "New session";
-    console.log(`[EVENT_LISTENERS] Session created: ${openCodeSessionId}`);
-    try {
-      const response = await this.workerClient.initSession({
-        contentSessionId: openCodeSessionId,
-        project,
-        prompt: title
-      });
-      if (response.skipped) {
-        console.log(`[EVENT_LISTENERS] Session marked as private: ${openCodeSessionId}`);
-        console.log(`[EVENT_LISTENERS] Reason: ${response.reason}`);
-        return;
-      }
-      this.sessionMapper.mapOpenCodeToClaudeMem(openCodeSessionId, response.sessionDbId);
-      this.promptNumberTracker.set(openCodeSessionId, response.promptNumber);
-      console.log(`[EVENT_LISTENERS] Mapped ${openCodeSessionId} → ${response.sessionDbId}`);
-      console.log(`[EVENT_LISTENERS] Project: ${project}, Prompt #${response.promptNumber}`);
-    } catch (error) {
-      console.error(`[EVENT_LISTENERS] Failed to initialize session ${openCodeSessionId}:`, error);
-    }
-  }
-  async handleMessagePartUpdated(event) {
-    const { part } = event.properties;
-    if (part.type !== "tool_call") {
-      return;
-    }
-    const toolName = part.name;
-    const toolArgs = part.args;
-    const toolResult = part.result || "";
-    const sessionId = part.sessionID;
-    const cwd = part.cwd || process.cwd();
-    const claudeMemSessionId = this.sessionMapper.getClaudeMemSessionId(sessionId);
-    if (!claudeMemSessionId) {
-      console.log(`[EVENT_LISTENERS] No claude-mem session for: ${sessionId}`);
-      return;
-    }
-    const promptNumber = this.getPromptNumber(sessionId);
-    console.log(`[EVENT_LISTENERS] Tool usage: ${sessionId} - ${toolName}`);
-    try {
-      const strippedArgs = this.privacyStripper.stripFromJson(toolArgs);
-      const strippedResult = this.privacyStripper.stripFromText(toolResult);
-      await this.workerClient.addObservation({
-        sessionDbId: claudeMemSessionId,
-        promptNumber,
-        toolName,
-        toolInput: strippedArgs,
-        toolOutput: strippedResult,
-        cwd,
-        timestamp: Date.now()
-      });
-      console.log(`[EVENT_LISTENERS] Added observation: ${claudeMemSessionId} - ${toolName}`);
-    } catch (error) {
-      console.error(`[EVENT_LISTENERS] Failed to add observation:`, error);
-    }
-  }
-  async handleSessionUpdated(event) {
-    const { info } = event.properties;
-    if (!info.time.archived) {
-      return;
-    }
-    const openCodeSessionId = info.id;
-    console.log(`[EVENT_LISTENERS] Session archived: ${openCodeSessionId}`);
-    const claudeMemSessionId = this.sessionMapper.getClaudeMemSessionId(openCodeSessionId);
-    if (!claudeMemSessionId) {
-      console.log(`[EVENT_LISTENERS] No claude-mem session for: ${openCodeSessionId}`);
-      return;
-    }
-    try {
-      await this.workerClient.completeSession(claudeMemSessionId);
-      console.log(`[EVENT_LISTENERS] Completed session: ${claudeMemSessionId}`);
-      this.sessionMapper.unmapSession(openCodeSessionId);
-      this.promptNumberTracker.delete(openCodeSessionId);
-    } catch (error) {
-      console.error(`[EVENT_LISTENERS] Failed to complete session:`, error);
-    }
-  }
-  getPromptNumber(sessionId) {
-    return this.promptNumberTracker.get(sessionId) ?? 1;
-  }
-  incrementPromptNumber(sessionId) {
-    const current = this.promptNumberTracker.get(sessionId) ?? 1;
-    this.promptNumberTracker.set(sessionId, current + 1);
-  }
-}
-
-// src/integration/context-injector.ts
-class ContextInjector {
-  workerClient;
-  projectNameExtractor;
-  constructor(workerClient) {
-    this.workerClient = workerClient;
-    this.projectNameExtractor = new ProjectNameExtractor;
-  }
-  async injectContext(project) {
-    try {
-      const context = await this.workerClient.getProjectContext(project);
-      if (!context || !context.trim()) {
-        console.log(`[CONTEXT_INJECTOR] No memory context available for project: ${project}`);
-        return "";
-      }
-      console.log(`[CONTEXT_INJECTOR] Injected memory context for project: ${project} (${context.length} chars)`);
-      return context;
-    } catch (error) {
-      console.warn(`[CONTEXT_INJECTOR] Failed to inject memory context for project: ${project}`, error);
-      return "";
-    }
-  }
-  async getSystemPromptAddition(project) {
-    const context = await this.injectContext(project);
-    if (!context)
-      return "";
-    return `
-## Relevant Context from Past Sessions
-
-${context}
-
----
-`;
-  }
-}
-
-// src/integration/utils/logger.ts
-var LogLevel;
-((LogLevel2) => {
-  LogLevel2[LogLevel2["DEBUG"] = 0] = "DEBUG";
-  LogLevel2[LogLevel2["INFO"] = 1] = "INFO";
-  LogLevel2[LogLevel2["WARN"] = 2] = "WARN";
-  LogLevel2[LogLevel2["ERROR"] = 3] = "ERROR";
-})(LogLevel ||= {});
-
-class Logger {
-  context;
-  constructor(context) {
-    this.context = context;
-  }
-  debug(message, ...args) {
-    console.log(`[${this.context}] [DEBUG] ${message}`, ...args);
-  }
-  info(message, ...args) {
-    console.log(`[${this.context}] [INFO] ${message}`, ...args);
-  }
-  warn(message, ...args) {
-    console.warn(`[${this.context}] [WARN] ${message}`, ...args);
-  }
-  error(message, ...args) {
-    console.error(`[${this.context}] [ERROR] ${message}`, ...args);
-  }
-}
-
-// src/integration/index.ts
-class ClaudeMemIntegration {
-  workerClient;
-  eventListeners;
-  contextInjector;
-  projectNameExtractor;
-  logger;
-  initialized = false;
-  memoryAvailable = false;
-  constructor(workerUrl = "http://localhost:37777") {
-    this.workerClient = new WorkerClient(workerUrl.includes("localhost") ? parseInt(workerUrl.split(":")[1] || "37777") : 37777);
-    this.eventListeners = new EventListeners(this.workerClient);
-    this.contextInjector = new ContextInjector(this.workerClient);
-    this.projectNameExtractor = new ProjectNameExtractor;
-    this.logger = new Logger("CLAUDE_MEM");
-  }
-  async initialize() {
-    if (this.initialized) {
-      console.log("[CLAUDE_MEM] Integration already initialized");
-      return;
-    }
-    try {
-      console.log("[CLAUDE_MEM] Initializing claude-mem integration...");
-      console.log(`[CLAUDE_MEM] Worker port: ${this.workerClient.getPort() || "37777"}`);
-      const ready = await this.workerClient.waitForReady(30000);
-      if (!ready) {
-        throw new Error("Worker service not ready after 30s. Is worker running?");
-      }
-      console.log("[CLAUDE_MEM] Worker service is ready");
-      await this.eventListeners.initialize();
-      this.initialized = true;
-      this.memoryAvailable = true;
-      console.log("[CLAUDE_MEM] Integration initialized successfully");
-      console.log("[CLAUDE_MEM] Project:", this.projectNameExtractor.getCurrentProject());
-    } catch (error) {
-      console.error("[CLAUDE_MEM] Initialization failed:", error);
-      console.warn("[CLAUDE_MEM] Continuing anyway, but expect potential issues");
-      this.memoryAvailable = false;
-    }
-  }
-  async getStatus() {
-    const workerReady = this.memoryAvailable && await this.workerClient.healthCheck();
-    return {
-      initialized: this.initialized,
-      workerReady,
-      currentProject: this.projectNameExtractor.getCurrentProject(),
-      workerUrl: `http://localhost:${this.workerClient.getPort() || "37777"}`
-    };
-  }
-  async getProjectContext(project) {
-    if (!this.memoryAvailable) {
-      this.logger.warn("Memory features are not available");
-      return null;
-    }
-    const projectToUse = project || this.projectNameExtractor.getCurrentProject();
-    return this.contextInjector.injectContext(projectToUse);
-  }
-  async searchMemory(query, options) {
-    if (!this.memoryAvailable) {
-      this.logger.warn("Memory features are not available");
-      throw new Error("Memory features not available");
-    }
-    return this.workerClient.search(query, options);
-  }
-  async shutdown() {
-    this.logger.info("Shutting down integration");
-    this.initialized = false;
-    this.memoryAvailable = false;
-  }
-  getWorkerClient() {
-    return this.workerClient;
-  }
-  getEventListeners() {
-    return this.eventListeners;
-  }
-  getContextInjector() {
-    return this.contextInjector;
-  }
-  isMemoryAvailable() {
-    return this.memoryAvailable;
-  }
-}
-var defaultInstance = new ClaudeMemIntegration;
-var integration_default = ClaudeMemIntegration;
 export {
-  defaultInstance,
-  integration_default as default,
   WorkerClient,
-  SessionMapper,
   ProjectNameExtractor,
   PrivacyTagStripper,
   Logger,
-  LogLevel,
-  EventListeners,
-  ContextInjector,
-  ClaudeMemIntegration
+  LogLevel
 };
