@@ -5,14 +5,10 @@ yarn.lock
 pnpm-lock.yaml
 bun.lockb
 
-# Build outputs (except bundle which is committed for GitHub installs)
+# Build outputs (keeping dist/ for GitHub installs)
 build/
 *.tsbuildinfo
-dist/cli*
-dist/integration/*
-dist/test*
-!dist/bundle/
-!dist/bundle/**
+# Note: dist/ is committed for GitHub installs since npm has the built files
 
 # Environment variables
 .env
