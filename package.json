@@ -43,8 +43,6 @@
     }
   },
   "scripts": {
-    "prepare": "npm run build",
-    "build": "npm run build:lib && npm run build:bundle",
     "build:lib": "tsc",
     "build:bundle": "bun build src/bundle/index.ts --outfile dist/bundle/claude-mem-opencode.js --target node",
     "test": "bun test",
